@@ -91,17 +91,17 @@ public class Retrier {
 			return this;
 		}
 	}
-	
+
 	public static class Strategies {
 
 		public static Function<Integer, Long> waitConstantly(final long delay) {
 			return whateveryoupass -> delay;
 		}
 
-		public static Function<Integer,Long> waitExponential() {
+		public static Function<Integer, Long> waitExponential() {
 			return waitExponential(2);
 		}
-		
+
 		public static Function<Integer, Long> waitExponential(final double backOffBase) {
 			return attempts -> {
 				if (attempts > 0) {
@@ -111,17 +111,15 @@ public class Retrier {
 				return 0l;
 			};
 		}
-		
-		//Retry only if provided exception was thrown.
-		public static Predicate<Exception> retryOn(Class <? extends Throwable>... exceptions) {
+
+		// Retry only if provided exception was thrown.
+		public static Predicate<Exception> retryOn(Class<? extends Throwable>... exceptions) {
 			return exception -> Arrays.stream(exceptions).anyMatch(clazz -> clazz.getClass().isInstance(exception));
 		}
-		
-		//Limit the number of attempts to a fixed value.
+
+		// Limit the number of attempts to a fixed value.
 		public static Predicate<Integer> stopAfter(final Integer maxAttempts) {
 			return attempts -> attempts >= maxAttempts;
 		}
 	}
-	
-	
 }
