@@ -6,6 +6,7 @@ import java.util.function.Predicate;
 import static java.util.Objects.requireNonNull;
 
 import java.util.Arrays;
+import java.util.concurrent.Callable;
 
 /**
  * Retrier
@@ -121,5 +122,57 @@ public class Retrier {
 		public static Predicate<Integer> stopAfter(final Integer maxAttempts) {
 			return attempts -> attempts >= maxAttempts;
 		}
+	}
+
+	public <T> T execute(final Callable<T> callable) throws Exception {
+		T lastResult = null;
+		Exception lastException = null;
+		boolean shouldRetry = false;
+		boolean attemptFailed = false;
+		int attempts = 0;
+		boolean interrupted = false;
+		do {
+			try {
+				attempts++;
+				lastException = null;
+				lastResult = null;
+
+				lastResult = callable.call();
+				attemptFailed = resultRetryStrategy.test(lastResult);
+			} catch (Exception e) {
+				attemptFailed = exceptionRetryStrategy.test(e);
+				lastException = e;
+			} finally {
+				interrupted = Thread.interrupted() || isInterruptedException(lastException);
+				shouldRetry = !interrupted && attemptFailed && !stopStrategy.test(attempts);
+				if (shouldRetry) {
+					try {
+						Thread.currentThread().wait(waitStrategy.apply(attempts));
+					} catch (InterruptedException e) {
+						interrupted = true;
+						shouldRetry = false;
+					}
+				}
+			}
+		} while (shouldRetry);
+		if (interrupted) {
+			Thread.currentThread().interrupt();
+		}
+		if (attemptFailed && !interrupted) {
+			return giveUpStrategy.whenNoMoreAttempts(lastResult, lastException);
+		}
+		if (lastException != null) {
+			throw lastException;
+		}
+
+		return lastResult;
+	}
+
+	private boolean isInterruptedException(final Throwable e) {
+		Throwable current = e;
+		if (current != null && !(current instanceof InterruptedException)) {
+			current = current.getCause();
+		}
+		return current != null;
 	}
 }
